@@ -15,6 +15,5 @@ Route::get('/', function () {
     return view('welcome');
 });
 Route::post('gettweets', ['uses' => 'RetrieveTweetsController@getTweets','as' => 'post.gettweets']);
-Route::get('/tweets', function () {
-	return view('tweets');
-});
+
+Route::get('/tweets', 'RetrieveTweetsController@tweets');
