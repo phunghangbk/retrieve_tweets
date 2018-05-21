@@ -34,59 +34,108 @@
   <script type="text/javascript">
     var oneWeekAgo = new Date();
     $.datetimepicker.setLocale('ja');
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    $('#startTimeDateTimePicker').datetimepicker({ minDate: oneWeekAgo });
-    $('#endTimeDateTimePicker').datetimepicker({ minDate: oneWeekAgo });
+    $('#startTimeDateTimePicker').datetimepicker();
+    $('#endTimeDateTimePicker').datetimepicker();
   </script>
 
   <script type='text/javascript'>
+    var getDates = function(startDate, endDate) {
+      var dates = [],
+      currentDate = startDate,
+      addDays = function(days) {
+        var date = new Date(this.valueOf());
+        date.setDate(date.getDate() + days);
+        return date;
+      };
+      while (currentDate <= endDate) {
+        dates.push(currentDate);
+        currentDate = addDays.call(currentDate, 1);
+      }
+      return dates;
+    };
+
+    function convertDateToString(dateObject) {
+      var date = dateObject.getDate()
+      date = date > 9 ? date : '0' + date
+      var mon = dateObject.getMonth()
+      mon = mon > 9 ? mon : '0' + mon
+      var year = dateObject.getFullYear()
+
+      return `${year}/${mon}/${date}`;
+    }
+
+    function convertTimeToString(date) {
+      var hour = date.getHours()
+      hour = hour > 9 ? hour : '0' + hour
+      var min = date.getMinutes()
+      min = min > 9 ? min : '0' + min
+      var sec = date.getSeconds()
+      sec = sec > 9 ? sec : '0' + sec
+
+      return `${hour}:${min}:${sec}`;
+    }
+
     $("#submit").click(function(event) {
       var url = "{{route('post.gettweets')}}";
       var user_name = "{{$userName}}";
       var keyword = $('input[name="keyword"]').val();
-      var start_time = $('input[name="start_time"]').val();
-      var end_time = $('input[name="end_time"]').val();
+      var start = new Date($('input[name="start_time"]').val());
+      var end = new Date($('input[name="end_time"]').val());
       var error_message = '';
       var warn_message = '';
-      $.ajaxSetup({
-        headers: {
-          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        }
-      });
 
-      $.ajax({
-        url: url,
-        type: 'POST',
-        dataType: 'json',
-        data: {
-          'keyword': keyword,
-          'start_time': start_time,
-          'end_time': end_time,
-          'user_name': user_name
-        },
-      })
-      .done(function(resp) {
-        if (resp.errors) {
-          if (resp.errors.keyword) {
-            error_message = error_message + resp.errors.keyword + '\n';
-          }
-          if (resp.errors.time) {
-            error_message = error_message + resp.errors.time;
-          }
-          alert(error_message);
+      var dates = getDates(start, end);
+      var start_time = '';
+      var end_time = '';
+      console.log(start);
+      var length = dates.length;
+      for (var i = 0; i < length; i++) {
+        if (length == 1) {
+          start_time = `${convertDateToString(dates[i])} ${convertTimeToString(start)}`;
+          end_time = `${convertDateToString(dates[i])} ${convertTimeToString(end)}`;
+        } else if (i == 0) {
+          start_time = `${convertDateToString(dates[i])} ${convertTimeToString(start)}`;
+          end_time = `${convertDateToString(dates[i])} 23:59:59`;
+        } else if (i == length - 1) {
+          start_time = `${convertDateToString(dates[i])} 00:00:00`;
+          end_time = `${convertDateToString(dates[i])} ${convertTimeToString(end)}`;
+        } else {
+          start_time = `${convertDateToString(dates[i])} 00:00:00`;
+          end_time = `${convertDateToString(dates[i])} 23:59:59`;
         }
+        $.ajaxSetup({
+          headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+          }
+        });
 
-        if (resp.warns && resp.warns.length > 0) {
-          warn_message = warn_message + resp.warns.time;
-          console.log($('#warnning'));
-          $('#warnning').text(warn_message);
-          $('#warnning').css('display', 'block');
-        }
-        console.log(resp);
-      })
-      .fail(function(error) {
-        alert(JSON.parse(error.responseText).keyword);
-      });
+        $.ajax({
+          url: url,
+          type: 'POST',
+          dataType: 'json',
+          data: {
+            'keyword': keyword,
+            'start_time': start_time,
+            'end_time': end_time,
+            'user_name': user_name
+          },
+        })
+        .done(function(resp) {
+          if (resp.errors) {
+            if (resp.errors.keyword) {
+              error_message = error_message + resp.errors.keyword + '\n';
+            }
+            if (resp.errors.time) {
+              error_message = error_message + resp.errors.time;
+            }
+            alert(error_message);
+          }
+          console.log(resp);
+        })
+        .fail(function(error) {
+          alert(JSON.parse(error.responseText).keyword);
+        });
+      }
     });
   </script>
 </html>
