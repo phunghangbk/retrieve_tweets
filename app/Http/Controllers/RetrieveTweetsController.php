@@ -61,7 +61,7 @@ class RetrieveTweetsController extends Controller
         return view('tweets', compact('userName'));
     }
 
-    private function changeSearchTimeZone($date = '', $time = '', $timeZone = '')
+    private function changeSearchTimeZone($date = '', $time = '', $timeZone = 'JST')
     {
         $result = '';
         if (! empty($date)) {
@@ -141,7 +141,34 @@ class RetrieveTweetsController extends Controller
             $tweets->statuses = array_merge($tweets->statuses, $next_results->statuses);
             $next_results_url_params = ! empty($next_results->search_metadata->next_results) ? $next_results->search_metadata->next_results : '';
         }
+
         return $tweets;
+    }
+
+    private function retrieveAllTweetsWhenAPIStop($twitter, $startDate, $startTime, $endDate, $endTime, $keyword)
+    {
+        $tweets = $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $endDate, $endTime, $keyword));
+        $untilDate = $this->getLastCreatedAt($tweets)[0];
+        $untilTime = $this->getLastCreatedAt($tweets)[1];
+
+        $tws = $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $untilDate, $untilTime, $keyword));
+        while (! empty($tws->statuses)) {
+            $tweets->statuses = array_merge($tweets->statuses, $tws->statuses);
+            $untilDate = $this->getLastCreatedAt($tweets)[0];
+            $untilTime = $this->getLastCreatedAt($tweets)[1];
+            $tws = $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $untilDate, $untilTime, $keyword));
+        }
+
+        return $tweets;
+    }
+
+    private function getLastCreatedAt($tweets)
+    {
+        $count = count($tweets->statuses);
+        $lastCreatedAt = new DateTime(($tweets->statuses)[$count-1]->created_at, new \DateTimeZone("UTC"));
+        $lastCreatedAt->setTimezone(new \DateTimeZone('Asia/Tokyo'));
+
+        return [$lastCreatedAt->format('Y-m-d'), $lastCreatedAt->format('H:i:s')];
     }
 
     /**
@@ -175,20 +202,19 @@ class RetrieveTweetsController extends Controller
     {
         $tweets = [];
         if (strtotime($startDate) == strtotime($endDate)) {
-            \Log::info('hang');
-            return $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $endDate, $endTime, $keyword));
+            return $this->retrieveAllTweetsWhenAPIStop($twitter, $startDate, $startTime, $endDate, $endTime, $keyword);
         } 
         $daterange = $this->getDatePeriod($startDate, $endDate);
         $count = count($daterange);
-        $tweets[] = $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $startDate, '23:59:59', $keyword));
+        $tweets[] = $this->retrieveAllTweetsWhenAPIStop($twitter, $startDate, $startTime, $startDate, '23:59:59', $keyword);
 
         if ($count >= 3) {
             for ($i = 1; $i < $count - 1; $i++) {
-                $tweets[] = $this->retrieveAllTweets($twitter, $this->createParameters($daterange[$i], '00:00:00', $daterange[$i], '23:59:59', $keyword));
+                $tweets[] = $this->retrieveAllTweetsWhenAPIStop($twitter, $daterange[$i], '00:00:00', $daterange[$i], '23:59:59', $keyword);
             }
         }
 
-        $tweets[] = $this->retrieveAllTweets($twitter, $this->createParameters($endDate, '00:00:00', $endDate, $endTime, $keyword));
+        $tweets[] = $this->retrieveAllTweetsWhenAPIStop($twitter, $endDate, '00:00:00', $endDate, $endTime, $keyword);
         $result = $tweets[0];
         for ($i = 1; $i < count($tweets); $i++) {
             $result->statuses = array_merge($result->statuses, $tweets[$i]->statuses);
