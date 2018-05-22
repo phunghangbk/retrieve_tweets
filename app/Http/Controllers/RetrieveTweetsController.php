@@ -137,7 +137,7 @@ class RetrieveTweetsController extends Controller
                     throw new Exception("Twitter API error " . $status_code);
                 }
                 $unavailableCnt += 1;
-                $this.waitUntilReset(time() + 30);
+                $this->waitUntilReset(time() + 30);
                 continue;
             }
             $unavailableCnt = 0;
@@ -258,30 +258,12 @@ class RetrieveTweetsController extends Controller
      * 回数制限を問合せ、アクセス可能になるまで wait する 
      */
     private function checkLimit($twitter) {
-        $unavailableCnt = 0;
-        $url = config('ttwitter.CHECK_RATE_LIMIT_URL');
-        while(1) {
-            $res = $twitter->buildOauth($url, 'GET')->performRequest();
-            $status_code = $twitter->getHttpStatusCode();
-            if (isset($status_code) && $status_code == 503) {
-                # 503 : Service Unavailable
-                if ($unavailableCnt > 10) {
-                    throw new Exception("Twitter API error " . $status_code);
-                }
-                $unavailableCnt += 1;
-                $this.waitUntilReset(time() + 30);
-                continue;
-            }
-            $unavailableCnt = 0;
-
-            if (isset($status_code) && $status_code != 200) {
-                throw new Exception("Twitter API error " . $status_code);
-            }
+        $res = $twitter->buildOauth(config('ttwitter.CHECK_RATE_LIMIT_URL'), 'GET')->performRequest();
+        $status_code = $twitter->getHttpStatusCode();
+        if (isset($status_code) && $status_code == 200) {
             list($remaining, $reset) = $this->getLimitContext(json_decode($res, true));
             if ($remaining == 0) {
-                $this.waitUntilReset($reset);
-            } else {
-                break;
+                $this->waitUntilReset($reset);
             }
         }
     }
@@ -299,8 +281,12 @@ class RetrieveTweetsController extends Controller
      */
     private function getLimitContext($res_text)
     {
-        $remaining = $res_text['resources']['search']['/search/tweets']['remaining'];
-        $reset     = $res_text['resources']['search']['/search/tweets']['reset'];
+        $remaining = ! empty($res_text['resources']['search']['/search/tweets']['remaining']) ?
+                    $res_text['resources']['search']['/search/tweets']['remaining'] : 
+                    '';
+        $reset     = ! empty($res_text['resources']['search']['/search/tweets']['reset']) ?
+                    $res_text['resources']['search']['/search/tweets']['reset'] :
+                    '';
 
         return [$remaining, $reset];
     }
