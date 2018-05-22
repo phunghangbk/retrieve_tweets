@@ -6,11 +6,12 @@ use Twitter;
 use DateTime;
 use Validator;
 use TwitterAPIExchange;
+use Exception;
 
 class RetrieveTweetsController extends Controller
 {
     const KEYWORD_ERROR_MESSAGE = 'キーワードを入力して下さい';
-    const TIME_WARNNING_MESSAGE = '※一週間以上経過したツイートは検索出来ません。ご注意下さい。';
+    const EMPTY_TIME_ERROR_MESSAGE = '検索したい時間帯を指定してください。';
     const TIME_ERROR_MESSAGE = '終了日付を開始日付より大きく指定して下さい。';
 
     public function getTweets(Request $request)
@@ -25,6 +26,9 @@ class RetrieveTweetsController extends Controller
             $errors['keyword'] = self::KEYWORD_ERROR_MESSAGE;
         }
 
+        if (empty($request->start_time) || empty($request->end_time)) {
+            $errors['empty_time'] = self::EMPTY_TIME_ERROR_MESSAGE;
+        }
         if (! empty($request->start_time)) {
             $startDate = (new DateTime($request->start_time))->format('Y-m-d');
             $startTime = (new DateTime($request->start_time))->format('H:i:s');
@@ -40,7 +44,7 @@ class RetrieveTweetsController extends Controller
         }
 
         if (! empty($errors)) {
-            return response(['errors' => $errors]);
+            return response(['error' => $errors]);
         }
 
         $twitter = $this->authenticateTwitter(
@@ -49,10 +53,15 @@ class RetrieveTweetsController extends Controller
             config('ttwitter.CONSUMER_KEY'),
             config('ttwitter.CONSUMER_SECRET')
         );
-        $tweets = $this->retrieveTweetsByDateRange($startDate, $startTime, $endDate, $endTime, $twitter, $request->keyword);
-        return response([
-            'tweets' => $tweets
-        ]);
+        try {
+            $tweets = $this->retrieveTweetsByDateRange($startDate, $startTime, $endDate, $endTime, $twitter, $request->keyword);
+            return response([
+                'tweets' => $tweets
+            ]);
+        } catch (Exception $e) {
+            \Log::info($e);
+            return response($e);
+        }
     }
 
     public function tweets(Request $request)
@@ -114,10 +123,31 @@ class RetrieveTweetsController extends Controller
      */
     private function retrieveTweets($twitter, $parameters)
     {
+        $this->checkLimit($twitter);
         $url = config('ttwitter.SEARCH_URL');
-        $tweets = $twitter->setGetfield($parameters)
-            ->buildOauth($url, 'GET')
-            ->performRequest(); 
+        $unavailableCnt = 0;
+        while(1) {
+            $tweets = $twitter->setGetfield($parameters)
+                ->buildOauth($url, 'GET')
+                ->performRequest(); 
+            $status_code = $twitter->getHttpStatusCode();
+            if (isset($status_code) && $status_code == 503) {
+                # 503 : Service Unavailable
+                if ($unavailableCnt > 10) {
+                    throw new Exception("Twitter API error " . $status_code);
+                }
+                $unavailableCnt += 1;
+                $this.waitUntilReset(time() + 30);
+                continue;
+            }
+            $unavailableCnt = 0;
+
+            if (isset($status_code) && $status_code != 200) {
+                throw new Exception("Twitter API error " . $status_code);
+            } else {
+                break;
+            }
+        }
         $tweets = json_decode($tweets);
         return $tweets;
     }
@@ -148,15 +178,17 @@ class RetrieveTweetsController extends Controller
     private function retrieveAllTweetsWhenAPIStop($twitter, $startDate, $startTime, $endDate, $endTime, $keyword)
     {
         $tweets = $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $endDate, $endTime, $keyword));
-        $untilDate = $this->getLastCreatedAt($tweets)[0];
-        $untilTime = $this->getLastCreatedAt($tweets)[1];
-
-        $tws = $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $untilDate, $untilTime, $keyword));
-        while (! empty($tws->statuses)) {
-            $tweets->statuses = array_merge($tweets->statuses, $tws->statuses);
+        if (! empty($tweets->statuses)) {
             $untilDate = $this->getLastCreatedAt($tweets)[0];
             $untilTime = $this->getLastCreatedAt($tweets)[1];
+
             $tws = $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $untilDate, $untilTime, $keyword));
+            while (! empty($tws->statuses)) {
+                $tweets->statuses = array_merge($tweets->statuses, $tws->statuses);
+                $untilDate = $this->getLastCreatedAt($tweets)[0];
+                $untilTime = $this->getLastCreatedAt($tweets)[1];
+                $tws = $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $untilDate, $untilTime, $keyword));
+            }
         }
 
         return $tweets;
@@ -195,7 +227,7 @@ class RetrieveTweetsController extends Controller
         return '?q=' . $keyword . 
             ' since:' . $this->changeSearchTimeZone($startDate, $startTime) . 
             ' until:' . $this->changeSearchTimeZone($endDate, $endTime) . 
-            '&count=100';
+            ' -filter:retweets and -filter:replies&count=100';
     }
 
     private function retrieveTweetsByDateRange($startDate, $startTime, $endDate, $endTime, $twitter, $keyword)
@@ -220,5 +252,56 @@ class RetrieveTweetsController extends Controller
             $result->statuses = array_merge($result->statuses, $tweets[$i]->statuses);
         }
         return $result;
+    }
+
+    /**
+     * 回数制限を問合せ、アクセス可能になるまで wait する 
+     */
+    private function checkLimit($twitter) {
+        $unavailableCnt = 0;
+        $url = config('ttwitter.CHECK_RATE_LIMIT_URL');
+        while(1) {
+            $res = $twitter->buildOauth($url, 'GET')->performRequest();
+            $status_code = $twitter->getHttpStatusCode();
+            if (isset($status_code) && $status_code == 503) {
+                # 503 : Service Unavailable
+                if ($unavailableCnt > 10) {
+                    throw new Exception("Twitter API error " . $status_code);
+                }
+                $unavailableCnt += 1;
+                $this.waitUntilReset(time() + 30);
+                continue;
+            }
+            $unavailableCnt = 0;
+
+            if (isset($status_code) && $status_code != 200) {
+                throw new Exception("Twitter API error " . $status_code);
+            }
+            list($remaining, $reset) = $this->getLimitContext(json_decode($res, true));
+            if ($remaining == 0) {
+                $this.waitUntilReset($reset);
+            } else {
+                break;
+            }
+        }
+    }
+
+    /*
+     * reset 時刻まで sleep
+     */
+    private function waitUntilReset($reset) 
+    {
+        time_sleep_until($reset);
+    }
+
+    /**
+     * 回数制限の情報を取得 （起動時）
+     */
+    private function getLimitContext($res_text)
+    {
+        $remaining = $res_text['resources']['search']['/search/tweets']['remaining'];
+        $reset     = $res_text['resources']['search']['/search/tweets']['reset'];
+
+        return [$remaining, $reset];
     }
 }
