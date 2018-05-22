@@ -115,6 +115,10 @@
             'end_time': end_time
           },
         })
+        if (result.tweets.statuses.length > 0) {
+          result.tweets.statuses = (sort(result.tweets.statuses)).splice(0, 30);
+        }
+        console.log(result)
         return result;
       } catch (e) {
         return e;
@@ -182,7 +186,7 @@
       if (statuses.length > 30) {
         statuses = statuses.splice(0, 30);
       }
-      console.log(statuses);
+      // console.log(statuses);
     });
   </script>
 </html>
