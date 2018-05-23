@@ -24,6 +24,8 @@
       <div class="form-group">
         <button id="submit" class="btn btn-success">Search</button>
       </div>
+      <span class="savetweetsuccess" style="display: none; color: green;"></span>
+      <span class="savetweeterror" style="display: none; color: red;"></span>
   </div>
 </body>
   <link rel="stylesheet" type="text/css" href="/css/jquery.datetimepicker.css"/>
@@ -118,7 +120,6 @@
         if (result.tweets.statuses.length > 0) {
           result.tweets.statuses = (sort(result.tweets.statuses)).splice(0, 30);
         }
-        console.log(result)
         return result;
       } catch (e) {
         return e;
@@ -139,6 +140,23 @@
         return (a.retweet_count > b.retweet_count) ? -1 : 1;
       });
       return tweets;
+    }
+
+    async function saveTweet(tweets) {
+      var result;
+      try {
+        result = await $.ajax({
+          url: "{{route('post.savetweets')}}",
+          type: 'POST',
+          dataType: 'json',
+          data: {
+            'tweets' : tweets
+          },
+        })
+        return result;
+      } catch (e) {
+        return e;
+      }
     }
 
     $("#submit").click(async function(event) {
@@ -186,7 +204,21 @@
       if (statuses.length > 30) {
         statuses = statuses.splice(0, 30);
       }
-      // console.log(statuses);
+      console.log(statuses);
+      saveTweet(statuses).then(function(result) {
+        console.log(result);
+        if (result.status == 'success') {
+          $('.savetweetsuccess').text(result.message);
+          $('.savetweetsuccess').css("display", "block");
+        } else {
+          if (result.status == 'error') {
+            $('.savetweeterror').text(result.message);
+          } else {
+            $('.savetweeterror').text('データー格納失敗しました。');
+          }
+          $('.savetweeterror').css("display", "block");
+        }
+      });
     });
   </script>
 </html>

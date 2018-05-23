@@ -70,6 +70,11 @@ class RetrieveTweetsController extends Controller
         return view('tweets', compact('userName'));
     }
 
+    public function savesearchinfo(Request $request)
+    {
+
+    }
+
     private function changeSearchTimeZone($date = '', $time = '', $timeZone = 'JST')
     {
         $result = '';
@@ -227,7 +232,7 @@ class RetrieveTweetsController extends Controller
         return '?q=' . $keyword . 
             ' since:' . $this->changeSearchTimeZone($startDate, $startTime) . 
             ' until:' . $this->changeSearchTimeZone($endDate, $endTime) . 
-            ' -filter:retweets and -filter:replies&count=100';
+            ' -filter:retweets and -filter:replies&count=100&tweet_mode=extended';
     }
 
     private function retrieveTweetsByDateRange($startDate, $startTime, $endDate, $endTime, $twitter, $keyword)
