@@ -150,7 +150,7 @@
           type: 'POST',
           dataType: 'json',
           data: {
-            'tweets' : tweets
+            'tweets' : JSON.stringify(tweets)
           },
         })
         return result;

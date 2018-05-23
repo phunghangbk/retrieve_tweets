@@ -17,7 +17,8 @@ class SaveTweets extends Controller
     {
         try {
             $tweet = new Tweet();
-            $records = $this->makeRecord($request->tweets);
+            \Log::info(count(json_decode($request->tweets, true)));
+            $records = $this->makeRecord(json_decode($request->tweets, true));
             if (count($records) > 0) {
                 if (! $tweet->insert($records)) {
                     return response([
@@ -47,7 +48,6 @@ class SaveTweets extends Controller
 
     private function tweetCreateAt($tweet)
     {
-        \Log::info($tweet);
         $timeUTC = new DateTime($tweet['created_at'], new \DateTimeZone('UTC'));
         $timeUTC->setTimezone(new \DateTimeZone('Asia/Tokyo'));
         $timeJST = $timeUTC->format('Y-m-d H:i:s');
@@ -76,7 +76,6 @@ class SaveTweets extends Controller
     {
         $result = '';
         if (! empty($tweet['entities']['hashtags']) && is_array($tweet['entities']['hashtags'])) {
-            \Log::info($tweet['entities']['hashtags']);
             $hashtags = $tweet['entities']['hashtags'];
             for ($i = 0; $i < count($hashtags); $i++) {
                 $result .= '#' . $hashtags[$i]['text'] . ' ';
