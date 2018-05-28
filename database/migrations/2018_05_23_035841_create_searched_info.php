@@ -17,6 +17,9 @@ class CreateSearchedInfo extends Migration
             $table->increments('id');
             $table->string('user_name');
             $table->text('searched_at');
+            $table->text('keyword');
+            $table->text('start');
+            $table->text('end');
             $table->timestamp('created_at')->nullable();
             $table->timestamp('updated_at')->nullable();
         });

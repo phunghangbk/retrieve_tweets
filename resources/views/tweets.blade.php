@@ -10,15 +10,15 @@
     <h2>Twitter Search API</h2>
       <div class="form-group">
         <label>Keyword:</label>
-        <input type="text" name="keyword" class="form-control" required>
+        <input type="text" name="keyword" class="form-control keyword" required>
       </div>
       <div class="form-group">
         <label>Start Time:</label>
-        <input type="text" name="start_time" class="form-control" id="startTimeDateTimePicker">
+        <input type="text" name="start_time" class="form-control start_time" id="startTimeDateTimePicker">
       </div>
       <div class="form-group">
         <label>End Time:</label>
-        <input type="text" name="end_time" class="form-control" id="endTimeDateTimePicker">
+        <input type="text" name="end_time" class="form-control end_time" id="endTimeDateTimePicker">
       </div>
       <span class="help-block" style="display: none;color: red;" id="warnning"></span>
       <div class="form-group">
@@ -26,6 +26,7 @@
       </div>
       <span class="savetweetsuccess" style="display: none; color: green;"></span>
       <span class="savetweeterror" style="display: none; color: red;"></span>
+      <span class="noresult" style="display: none; color: red;"></span>
   </div>
 </body>
   <link rel="stylesheet" type="text/css" href="/css/jquery.datetimepicker.css"/>
@@ -41,6 +42,12 @@
   </script>
 
   <script type='text/javascript'>
+    $(function() {
+      $('.keyword').val("{{$keyword}}")
+      $('.start_time').val("{{$start}}")
+      $('.end_time').val("{{$end}}")
+    });
+    
     var getDates = function(startDate, endDate) {
       var dates = [],
       currentDate = startDate,
@@ -55,6 +62,12 @@
       }
       return dates;
     };
+
+    function getnow() {
+      var now = new Date();
+      now = `${now.getFullYear()}/${now.getMonth()}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
+      return now;
+    }
 
     function convertDateToString(dateObject) {
       var date = dateObject.getDate()
@@ -117,7 +130,7 @@
             'end_time': end_time
           },
         })
-        if (result.tweets.statuses.length > 0) {
+        if (typeof result.tweets != 'undefined' && result.tweets.statuses.length > 0) {
           result.tweets.statuses = (sort(result.tweets.statuses)).splice(0, 30);
         }
         return result;
@@ -159,27 +172,59 @@
       }
     }
 
+    async function saveSearchHistory(userName, time, keyword, start, end) {
+      var result;
+      try {
+        result = await $.ajax({
+          url: "{{route('post.savesearchinfo')}}",
+          type: 'POST',
+          dataType: 'json',
+          data: {
+            'user_name' : userName,
+            'searched_at' : time,
+            'keyword' : keyword,
+            'start' : start,
+            'end' : end
+          },
+        })
+        return result;
+      } catch (e) {
+        return e;
+      }
+    }
+
     $("#submit").click(async function(event) {
+      var now = getnow();
       var url = "{{route('post.gettweets')}}";
       var user_name = "{{$userName}}";
       var keyword = $('input[name="keyword"]').val();
-      var start = new Date($('input[name="start_time"]').val());
-      var end = new Date($('input[name="end_time"]').val());
+      var start_val = $('input[name="start_time"]').val();
+      var end_val = $('input[name="end_time"]').val();
+
+      if (start_val.length <= 10) {
+        start_val += ' 00:00:00';
+      }
+
+      if (end_val.length <= 10) {
+        end_val += ' 23:59:59';
+      }
+      var start = new Date(start_val);
+      var end = new Date(end_val);
       var error_message = '';
-      var warn_message = '';
       var dates = getDates(start, end);
+      console.log(dates)
       var start_time = '';
       var end_time = '';
       var dateTimes = getDateTimes(start, end, dates);
+      console.log(dateTimes)
       $.ajaxSetup({
         headers: {
           'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
         }
       });
-
-      var result = await Promise.all(asyncAjax(url, keyword, dateTimes, doAjax))
+      var result = await Promise.all(asyncAjax(url, keyword, dateTimes, doAjax));
       var statuses = [];
-      result.forEach( function(element, index) {
+      result.forEach(function(element, index) {
         if (element.error) {
           var error_message = '';
           if (element.error.keyword) {
@@ -200,25 +245,39 @@
         }
       });
 
-      statuses = sort(statuses);
-      if (statuses.length > 30) {
-        statuses = statuses.splice(0, 30);
-      }
-      console.log(statuses);
-      saveTweet(statuses).then(function(result) {
-        console.log(result);
-        if (result.status == 'success') {
-          $('.savetweetsuccess').text(result.message);
-          $('.savetweetsuccess').css("display", "block");
-        } else {
-          if (result.status == 'error') {
-            $('.savetweeterror').text(result.message);
-          } else {
-            $('.savetweeterror').text('データー格納失敗しました。');
-          }
-          $('.savetweeterror').css("display", "block");
+      if (statuses.length == 0) {
+        $('.noresult').text('検索結果はありません。');
+        $('.noresult').css('display', 'block');
+      } else {
+        statuses = sort(statuses);
+        if (statuses.length > 30) {
+          statuses = statuses.splice(0, 30);
         }
-      });
+        console.log(statuses);
+        saveTweet(statuses).then(function(result) {
+          if (result.status == 'success') {
+            $('.savetweetsuccess').text(result.message);
+            $('.savetweetsuccess').css("display", "block");
+          } else {
+            if (result.status == 'error') {
+              $('.savetweeterror').text(result.message);
+            } else {
+              $('.savetweeterror').text('データー格納失敗しました。');
+            }
+            $('.savetweeterror').css("display", "block");
+          }
+        });
+      }
+
+      if (keyword && start_val && end_val) {
+        saveSearchHistory(user_name, now, keyword, start_val, end_val).then(function(result) {
+          if (result.message) {
+            console.log(result.message);
+          } else {
+            console.log(result);
+          }
+        });
+      }
     });
   </script>
 </html>

@@ -66,13 +66,11 @@ class RetrieveTweetsController extends Controller
 
     public function tweets(Request $request)
     {
-        $userName = $request->user_name;
-        return view('tweets', compact('userName'));
-    }
-
-    public function savesearchinfo(Request $request)
-    {
-
+        $userName = ! empty($request->user_name) ? $request->user_name : '';
+        $start = ! empty($request->start) ? $request->start : '';
+        $end = ! empty($request->end) ? $request->end : '';
+        $keyword = ! empty($request->keyword) ? $request->keyword : '';
+        return view('tweets', compact('userName', 'start', 'end', 'keyword'));
     }
 
     private function changeSearchTimeZone($date = '', $time = '', $timeZone = 'JST')
