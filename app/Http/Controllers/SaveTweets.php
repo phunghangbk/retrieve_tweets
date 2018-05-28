@@ -41,6 +41,26 @@ class SaveTweets extends Controller
         }
     }
 
+    public function deleteTweets($date = '')
+    {
+        if (! empty($date)) {
+            $d = new DateTime($date);
+        } else {
+            $d = new DateTime();
+            $d->sub(new \DateInterval('P2D'));
+        }
+        $d = $d->format('Y-m-d');
+
+        $tweet = new Tweet();
+        try {
+            if (! $tweet->whereDate('created_at', $d)->delete()) {
+                \Log::info('Cannot delete data');
+            }
+        } catch (Exception $e) {
+            \Log::info($e);
+        }
+    }
+
     private function tweetID($tweet) 
     {
         return ! empty($tweet['id']) ? $tweet['id'] : '';

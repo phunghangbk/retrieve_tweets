@@ -13,7 +13,8 @@ class RetrieveTweetsController extends Controller
     const KEYWORD_ERROR_MESSAGE = 'キーワードを入力して下さい';
     const EMPTY_TIME_ERROR_MESSAGE = '検索したい時間帯を指定してください。';
     const TIME_ERROR_MESSAGE = '終了日付を開始日付より大きく指定して下さい。';
-
+    const DATE_LENGTH = 10;
+    const MAX = 20;
     public function getTweets(Request $request)
     {
         $errors = [];
@@ -29,6 +30,7 @@ class RetrieveTweetsController extends Controller
         if (empty($request->start_time) || empty($request->end_time)) {
             $errors['empty_time'] = self::EMPTY_TIME_ERROR_MESSAGE;
         }
+
         if (! empty($request->start_time)) {
             $startDate = (new DateTime($request->start_time))->format('Y-m-d');
             $startTime = (new DateTime($request->start_time))->format('H:i:s');
@@ -36,7 +38,11 @@ class RetrieveTweetsController extends Controller
 
         if (! empty($request->end_time)) {
             $endDate = (new DateTime($request->end_time))->format('Y-m-d');
-            $endTime = (new DateTime($request->end_time))->format('H:i:s');
+            if (strlen($request->end_time) > self::DATE_LENGTH) {
+                $endTime = (new DateTime($request->end_time))->format('H:i:s');
+            } else {
+                $endTime = '23:59:59';
+            }
         }
 
         if (strtotime($startDate) > strtotime($endDate)) {
@@ -54,7 +60,8 @@ class RetrieveTweetsController extends Controller
             config('ttwitter.CONSUMER_SECRET')
         );
         try {
-            $tweets = $this->retrieveTweetsByDateRange($startDate, $startTime, $endDate, $endTime, $twitter, $request->keyword);
+            $tweets = $this->sort($this->retrieveAllTweetsWhenAPIStop($twitter, $startDate, $startTime, $endDate, $endTime, $request->keyword));
+            
             return response([
                 'tweets' => $tweets
             ]);
@@ -126,6 +133,7 @@ class RetrieveTweetsController extends Controller
      */
     private function retrieveTweets($twitter, $parameters)
     {
+        \Log::info($parameters);
         $this->checkLimit($twitter);
         $url = config('ttwitter.SEARCH_URL');
         $unavailableCnt = 0;
@@ -145,7 +153,9 @@ class RetrieveTweetsController extends Controller
             }
             $unavailableCnt = 0;
 
-            if (isset($status_code) && $status_code != 200) {
+            if ($status_code == 429) {
+                $this->waitUntilReset(time() + 100);
+            } else if (isset($status_code) && $status_code != 200) {
                 throw new Exception("Twitter API error " . $status_code);
             } else {
                 break;
@@ -197,6 +207,22 @@ class RetrieveTweetsController extends Controller
         return $tweets;
     }
 
+    private function my_sort($a,$b)
+    {
+        if ($a->retweet_count == $b->retweet_count) {
+            return 0;
+        }
+        return ($a->retweet_count > $b->retweet_count) ? -1:1;
+    }
+
+    private function sort($tweets) {
+        if (isset($tweets->statuses)) {
+            usort($tweets->statuses,array( $this, "my_sort" ));
+            $tweets->statuses = array_slice($tweets->statuses, 0, self::MAX);
+        }
+        return $tweets;
+    }
+
     private function getLastCreatedAt($tweets)
     {
         $count = count($tweets->statuses);
@@ -206,55 +232,12 @@ class RetrieveTweetsController extends Controller
         return [$lastCreatedAt->format('Y-m-d'), $lastCreatedAt->format('H:i:s')];
     }
 
-    /**
-     * get list of date beetween two date
-     * @param  [string] $startDate
-     * @param  [string] $endDate
-     * @return [array] $daterange
-     */
-    private function getDatePeriod($startDate, $endDate)
-    {
-        $startDate = new DateTime($startDate);
-        $endDate = new DateTime($endDate);
-        $interval = new \DateInterval('P1D');
-        $daterange = new \DatePeriod($startDate, $interval ,$endDate);
-        $result = [];
-        foreach($daterange as $date) {
-            $result[] = $date->format('Y-m-d');
-        }
-        return $result;
-    }
-
     private function createParameters($startDate, $startTime, $endDate, $endTime, $keyword)
     {
         return '?q=' . $keyword . 
             ' since:' . $this->changeSearchTimeZone($startDate, $startTime) . 
             ' until:' . $this->changeSearchTimeZone($endDate, $endTime) . 
             ' -filter:retweets and -filter:replies&count=100&tweet_mode=extended';
-    }
-
-    private function retrieveTweetsByDateRange($startDate, $startTime, $endDate, $endTime, $twitter, $keyword)
-    {
-        $tweets = [];
-        if (strtotime($startDate) == strtotime($endDate)) {
-            return $this->retrieveAllTweetsWhenAPIStop($twitter, $startDate, $startTime, $endDate, $endTime, $keyword);
-        } 
-        $daterange = $this->getDatePeriod($startDate, $endDate);
-        $count = count($daterange);
-        $tweets[] = $this->retrieveAllTweetsWhenAPIStop($twitter, $startDate, $startTime, $startDate, '23:59:59', $keyword);
-
-        if ($count >= 3) {
-            for ($i = 1; $i < $count - 1; $i++) {
-                $tweets[] = $this->retrieveAllTweetsWhenAPIStop($twitter, $daterange[$i], '00:00:00', $daterange[$i], '23:59:59', $keyword);
-            }
-        }
-
-        $tweets[] = $this->retrieveAllTweetsWhenAPIStop($twitter, $endDate, '00:00:00', $endDate, $endTime, $keyword);
-        $result = $tweets[0];
-        for ($i = 1; $i < count($tweets); $i++) {
-            $result->statuses = array_merge($result->statuses, $tweets[$i]->statuses);
-        }
-        return $result;
     }
 
     /**
@@ -276,7 +259,8 @@ class RetrieveTweetsController extends Controller
      */
     private function waitUntilReset($reset) 
     {
-        time_sleep_until($reset);
+        $time = time();
+        usleep($reset - $time + 10);
     }
 
     /**

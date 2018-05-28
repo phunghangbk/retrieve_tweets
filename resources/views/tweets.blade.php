@@ -27,6 +27,7 @@
       <span class="savetweetsuccess" style="display: none; color: green;"></span>
       <span class="savetweeterror" style="display: none; color: red;"></span>
       <span class="noresult" style="display: none; color: red;"></span>
+      <span id="image" style="display: none;"><img src="/images/loading.gif"></span>
   </div>
 </body>
   <link rel="stylesheet" type="text/css" href="/css/jquery.datetimepicker.css"/>
@@ -48,149 +49,59 @@
       $('.end_time').val("{{$end}}")
     });
     
-    var getDates = function(startDate, endDate) {
-      var dates = [],
-      currentDate = startDate,
-      addDays = function(days) {
-        var date = new Date(this.valueOf());
-        date.setDate(date.getDate() + days);
-        return date;
-      };
-      while (currentDate <= endDate) {
-        dates.push(currentDate);
-        currentDate = addDays.call(currentDate, 1);
-      }
-      return dates;
-    };
-
     function getnow() {
       var now = new Date();
       now = `${now.getFullYear()}/${now.getMonth()}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
       return now;
     }
 
-    function convertDateToString(dateObject) {
-      var date = dateObject.getDate()
-      date = date > 9 ? date : '0' + date
-      var mon = dateObject.getMonth() + 1
-      mon = mon > 9 ? mon : '0' + mon
-      var year = dateObject.getFullYear()
-
-      return `${year}/${mon}/${date}`;
-    }
-
-    function convertTimeToString(date) {
-      var hour = date.getHours()
-      hour = hour > 9 ? hour : '0' + hour
-      var min = date.getMinutes()
-      min = min > 9 ? min : '0' + min
-      var sec = date.getSeconds()
-      sec = sec > 9 ? sec : '0' + sec
-
-      return `${hour}:${min}:${sec}`;
-    }
-
-    function getDateTimes(start, end, dates) {
-      var dateTimes = [];
-      var length = dates.length;
-      if (length == 0) {
-        dateTimes.push({'start_time': '', 'end_time': ''});
-        return dateTimes;
-      }
-      for (var i = 0; i < length; i++) {
-        if (length == 1) {
-          start_time = `${convertDateToString(dates[i])} ${convertTimeToString(start)}`;
-          end_time = `${convertDateToString(dates[i])} ${convertTimeToString(end)}`;
-        } else if (i == 0) {
-          start_time = `${convertDateToString(dates[i])} ${convertTimeToString(start)}`;
-          end_time = `${convertDateToString(dates[i])} 23:59:59`;
-        } else if (i == length - 1) {
-          start_time = `${convertDateToString(dates[i])} 00:00:00`;
-          end_time = `${convertDateToString(dates[i])} ${convertTimeToString(end)}`;
+    function saveTweet(tweets) {
+      $.ajax({
+        url: "{{route('post.savetweets')}}",
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          'tweets' : JSON.stringify(tweets)
+        },
+      })
+      .done(function(resp) {
+        console.log(resp)
+        if (resp.status == 'success') {
+          $('.savetweetsuccess').text(resp.message);
+          $('.savetweetsuccess').css("display", "block");
         } else {
-          start_time = `${convertDateToString(dates[i])} 00:00:00`;
-          end_time = `${convertDateToString(dates[i])} 23:59:59`;
+          if (resp.status == 'error') {
+            $('.savetweeterror').text(resp.message);
+          } else {
+            $('.savetweeterror').text('データー格納失敗しました。');
+          }
+          $('.savetweeterror').css("display", "block");
         }
-
-        dateTimes.push({'start_time': start_time, 'end_time': end_time});
-      }
-      return dateTimes;
+      })
+      .fail(function(error){
+        console.log(error)
+      })
     }
 
-    async function doAjax(url, keyword, start_time, end_time) {
-      var result;
-      try {
-        result = await $.ajax({
-          url: url,
-          type: 'POST',
-          dataType: 'json',
-          data: {
-            'keyword': keyword,
-            'start_time': start_time,
-            'end_time': end_time
-          },
-        })
-        if (typeof result.tweets != 'undefined' && result.tweets.statuses.length > 0) {
-          result.tweets.statuses = (sort(result.tweets.statuses)).splice(0, 30);
-        }
-        return result;
-      } catch (e) {
-        return e;
-      }
-    }
-
-    function asyncAjax(url, keyword, array, callback) {
-      var promises = [];
-      for (var i = 0; i < array.length; i++) {
-        promises.push(callback(url, keyword, array[i].start_time, array[i].end_time));
-      }
-
-      return promises;
-    }
-
-    function sort(tweets) {
-      tweets.sort(function(a, b) {
-        return (a.retweet_count > b.retweet_count) ? -1 : 1;
-      });
-      return tweets;
-    }
-
-    async function saveTweet(tweets) {
-      var result;
-      try {
-        result = await $.ajax({
-          url: "{{route('post.savetweets')}}",
-          type: 'POST',
-          dataType: 'json',
-          data: {
-            'tweets' : JSON.stringify(tweets)
-          },
-        })
-        return result;
-      } catch (e) {
-        return e;
-      }
-    }
-
-    async function saveSearchHistory(userName, time, keyword, start, end) {
-      var result;
-      try {
-        result = await $.ajax({
-          url: "{{route('post.savesearchinfo')}}",
-          type: 'POST',
-          dataType: 'json',
-          data: {
-            'user_name' : userName,
-            'searched_at' : time,
-            'keyword' : keyword,
-            'start' : start,
-            'end' : end
-          },
-        })
-        return result;
-      } catch (e) {
-        return e;
-      }
+    function saveSearchHistory(userName, time, keyword, start, end) {
+      $.ajax({
+        url: "{{route('post.savesearchinfo')}}",
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          'user_name' : userName,
+          'searched_at' : time,
+          'keyword' : keyword,
+          'start' : start,
+          'end' : end
+        },
+      })
+      .done(function(resp) {
+        console.log(resp)
+      })
+      .fail(function(error){
+        console.log(error)
+      })  
     }
 
     $("#submit").click(async function(event) {
@@ -198,85 +109,62 @@
       var url = "{{route('post.gettweets')}}";
       var user_name = "{{$userName}}";
       var keyword = $('input[name="keyword"]').val();
-      var start_val = $('input[name="start_time"]').val();
-      var end_val = $('input[name="end_time"]').val();
-
-      if (start_val.length <= 10) {
-        start_val += ' 00:00:00';
-      }
-
-      if (end_val.length <= 10) {
-        end_val += ' 23:59:59';
-      }
-      var start = new Date(start_val);
-      var end = new Date(end_val);
+      var start_time = $('input[name="start_time"]').val();
+      var end_time = $('input[name="end_time"]').val();
       var error_message = '';
-      var dates = getDates(start, end);
-      console.log(dates)
-      var start_time = '';
-      var end_time = '';
-      var dateTimes = getDateTimes(start, end, dates);
-      console.log(dateTimes)
+      var result = [];
       $.ajaxSetup({
         headers: {
           'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
         }
       });
-      var result = await Promise.all(asyncAjax(url, keyword, dateTimes, doAjax));
-      var statuses = [];
-      result.forEach(function(element, index) {
-        if (element.error) {
-          var error_message = '';
-          if (element.error.keyword) {
-            error_message += element.error.keyword + '\n';
+      
+      $.ajax({
+        url: url,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          'keyword': keyword,
+          'start_time': start_time,
+          'end_time': end_time
+        },
+        beforeSend: function(){
+          $('#image').show();
+        },
+        complete: function(){
+          $('#image').hide();
+        },
+      })
+      .done(function(resp) {
+        var error_message = '';
+        if (resp.error) {
+          if (resp.error.keyword) {
+            error_message = error_message + resp.error.keyword + '\n';
           }
-          if (element.error.empty_time) {
-            error_message += element.error.empty_time + '\n';
+          if (resp.error.time) {
+            error_message = error_message + resp.error.time;
           }
-
-          if (! element.error.keyword && ! element.error.empty_time) {
-            error_message = 'エラーが発生しました。再度検索してみてください。';
+          if (resp.error.empty_time) {
+            error_message = error_message + resp.error.empty_time;
           }
           alert(error_message);
         } else {
-          element.tweets.statuses.forEach( function(el, i) {
-            statuses.push(el);
-          });
+          console.log(resp);
+          if (typeof resp.tweets.statuses == 'undefined' ||  resp.tweets.statuses.length == 0) {
+            $('.noresult').text('検索結果はありません。');
+            $('.noresult').css('display', 'block');
+          } else {
+            saveTweet(resp.tweets.statuses);
+          }
         }
+      })
+      .fail(function(error) {
+        console.log(JSON.parse(error.responseText));
+        alert('エラーが発生しました。テックに連絡ください。');
       });
 
-      if (statuses.length == 0) {
-        $('.noresult').text('検索結果はありません。');
-        $('.noresult').css('display', 'block');
-      } else {
-        statuses = sort(statuses);
-        if (statuses.length > 30) {
-          statuses = statuses.splice(0, 30);
-        }
-        console.log(statuses);
-        saveTweet(statuses).then(function(result) {
-          if (result.status == 'success') {
-            $('.savetweetsuccess').text(result.message);
-            $('.savetweetsuccess').css("display", "block");
-          } else {
-            if (result.status == 'error') {
-              $('.savetweeterror').text(result.message);
-            } else {
-              $('.savetweeterror').text('データー格納失敗しました。');
-            }
-            $('.savetweeterror').css("display", "block");
-          }
-        });
-      }
-
-      if (keyword && start_val && end_val) {
-        saveSearchHistory(user_name, now, keyword, start_val, end_val).then(function(result) {
-          if (result.message) {
-            console.log(result.message);
-          } else {
-            console.log(result);
-          }
-        });
+      if (keyword && start_time && end_time) {
+        saveSearchHistory(user_name, now, keyword, start_time, end_time);
       }
     });
   </script>
