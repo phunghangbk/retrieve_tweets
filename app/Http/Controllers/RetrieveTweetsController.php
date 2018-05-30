@@ -60,7 +60,9 @@ class RetrieveTweetsController extends Controller
             config('ttwitter.CONSUMER_SECRET')
         );
         try {
-            $tweets = $this->sort($this->retrieveAllTweetsWhenAPIStop($twitter, $startDate, $startTime, $endDate, $endTime, $request->keyword));
+            $tweets = $this->retrieveAllTweetsWhenAPIStop($twitter, $startDate, $startTime, $endDate, $endTime, $request->keyword);
+            \Log::info(count($tweets->statuses));
+            $tweets = $this->sort($tweets);
             
             return response([
                 'tweets' => $tweets
@@ -133,8 +135,6 @@ class RetrieveTweetsController extends Controller
      */
     private function retrieveTweets($twitter, $parameters)
     {
-        \Log::info($parameters);
-        $this->checkLimit($twitter);
         $url = config('ttwitter.SEARCH_URL');
         $unavailableCnt = 0;
         while(1) {
@@ -203,7 +203,7 @@ class RetrieveTweetsController extends Controller
                 $tws = $this->retrieveAllTweets($twitter, $this->createParameters($startDate, $startTime, $untilDate, $untilTime, $keyword));
             }
         }
-
+        
         return $tweets;
     }
 
@@ -238,43 +238,5 @@ class RetrieveTweetsController extends Controller
             ' since:' . $this->changeSearchTimeZone($startDate, $startTime) . 
             ' until:' . $this->changeSearchTimeZone($endDate, $endTime) . 
             ' -filter:retweets and -filter:replies&count=100&tweet_mode=extended';
-    }
-
-    /**
-     * 回数制限を問合せ、アクセス可能になるまで wait する 
-     */
-    private function checkLimit($twitter) {
-        $res = $twitter->buildOauth(config('ttwitter.CHECK_RATE_LIMIT_URL'), 'GET')->performRequest();
-        $status_code = $twitter->getHttpStatusCode();
-        if (isset($status_code) && $status_code == 200) {
-            list($remaining, $reset) = $this->getLimitContext(json_decode($res, true));
-            if ($remaining == 0) {
-                $this->waitUntilReset($reset);
-            }
-        }
-    }
-
-    /*
-     * reset 時刻まで sleep
-     */
-    private function waitUntilReset($reset) 
-    {
-        $time = time();
-        usleep($reset - $time + 10);
-    }
-
-    /**
-     * 回数制限の情報を取得 （起動時）
-     */
-    private function getLimitContext($res_text)
-    {
-        $remaining = ! empty($res_text['resources']['search']['/search/tweets']['remaining']) ?
-                    $res_text['resources']['search']['/search/tweets']['remaining'] : 
-                    '';
-        $reset     = ! empty($res_text['resources']['search']['/search/tweets']['reset']) ?
-                    $res_text['resources']['search']['/search/tweets']['reset'] :
-                    '';
-
-        return [$remaining, $reset];
     }
 }

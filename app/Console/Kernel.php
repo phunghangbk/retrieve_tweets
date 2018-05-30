@@ -25,7 +25,8 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('delete:tweets')
-                 ->dailyAt('00:01');
+                 ->timezone('Asia/Tokyo')
+                 ->dailyAt('11:05');
     }
 
     /**

@@ -69,6 +69,8 @@
         if (resp.status == 'success') {
           $('.savetweetsuccess').text(resp.message);
           $('.savetweetsuccess').css("display", "block");
+          $('.noresult').css('display', 'none');
+          $('.savetweeterror').css('display', 'none');
         } else {
           if (resp.status == 'error') {
             $('.savetweeterror').text(resp.message);
@@ -76,6 +78,8 @@
             $('.savetweeterror').text('データー格納失敗しました。');
           }
           $('.savetweeterror').css("display", "block");
+          $('.noresult').css('display', 'none');
+          $('.savetweetsuccess').css('display', 'none');
         }
       })
       .fail(function(error){
@@ -153,6 +157,8 @@
           if (typeof resp.tweets.statuses == 'undefined' ||  resp.tweets.statuses.length == 0) {
             $('.noresult').text('検索結果はありません。');
             $('.noresult').css('display', 'block');
+            $('.savetweetsuccess').css('display', 'none');
+            $('.savetweeterror').css('display', 'none');
           } else {
             saveTweet(resp.tweets.statuses);
           }
