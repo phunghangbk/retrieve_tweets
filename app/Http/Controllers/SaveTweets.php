@@ -55,6 +55,8 @@ class SaveTweets extends Controller
         try {
             if (! $tweet->whereDate('created_at', $d)->delete()) {
                 \Log::info('Cannot delete data');
+            } else {
+                \Log::info('Delete data success!!!');
             }
         } catch (Exception $e) {
             \Log::info($e);

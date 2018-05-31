@@ -239,4 +239,10 @@ class RetrieveTweetsController extends Controller
             ' until:' . $this->changeSearchTimeZone($endDate, $endTime) . 
             ' -filter:retweets and -filter:replies&count=100&tweet_mode=extended';
     }
+
+    private function waitUntilReset($reset)
+    {
+        $time = time();
+        usleep($reset - $time + 10);
+    }
 }

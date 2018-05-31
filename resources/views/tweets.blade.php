@@ -1,54 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Twitter API</title>
-  <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <title>Tweets Search</title>
   <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
-  <div class="container">
-    <h2>Twitter Search API</h2>
-      <div class="form-group">
-        <label>Keyword:</label>
-        <input type="text" name="keyword" class="form-control keyword" required>
-      </div>
-      <div class="form-group">
-        <label>Start Time:</label>
-        <input type="text" name="start_time" class="form-control start_time" id="startTimeDateTimePicker">
-      </div>
-      <div class="form-group">
-        <label>End Time:</label>
-        <input type="text" name="end_time" class="form-control end_time" id="endTimeDateTimePicker">
-      </div>
-      <span class="help-block" style="display: none;color: red;" id="warnning"></span>
-      <div class="form-group">
-        <button id="submit" class="btn btn-success">Search</button>
-      </div>
+  <div class="container" style="margin: 0% 25% 50% 50%;">
+    <h2>Tweets Search</h2>
       <span class="savetweetsuccess" style="display: none; color: green;"></span>
       <span class="savetweeterror" style="display: none; color: red;"></span>
       <span class="noresult" style="display: none; color: red;"></span>
       <span id="image" style="display: none;"><img src="/images/loading.gif"></span>
   </div>
 </body>
-  <link rel="stylesheet" type="text/css" href="/css/jquery.datetimepicker.css"/>
   <script src="//code.jquery.com/jquery-1.9.1.js"></script>
   <script src="/js/jquery.js"></script>
-  <script src="/js/jquery.datetimepicker.full.min.js"></script>
-
-  <script type="text/javascript">
-    var oneWeekAgo = new Date();
-    $.datetimepicker.setLocale('ja');
-    $('#startTimeDateTimePicker').datetimepicker();
-    $('#endTimeDateTimePicker').datetimepicker();
-  </script>
 
   <script type='text/javascript'>
-    $(function() {
-      $('.keyword').val("{{$keyword}}")
-      $('.start_time').val("{{$start}}")
-      $('.end_time').val("{{$end}}")
-    });
-    
     function getnow() {
       var now = new Date();
       now = `${now.getFullYear()}/${now.getMonth()}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
@@ -108,21 +76,22 @@
       })  
     }
 
-    $("#submit").click(async function(event) {
+    $(function() {
       var now = getnow();
       var url = "{{route('post.gettweets')}}";
       var user_name = "{{$userName}}";
-      var keyword = $('input[name="keyword"]').val();
-      var start_time = $('input[name="start_time"]').val();
-      var end_time = $('input[name="end_time"]').val();
+      var keyword = "{{$keyword}}";
+      var start_time = "{{$start}}";
+      var end_time = "{{$end}}";
       var error_message = '';
       var result = [];
+
       $.ajaxSetup({
         headers: {
           'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
         }
       });
-      
+
       $.ajax({
         url: url,
         type: 'POST',
@@ -162,12 +131,16 @@
           } else {
             saveTweet(resp.tweets.statuses);
           }
+          window.open('','_self');
+          window.close();
         }
       })
       .fail(function(error) {
         console.log(JSON.parse(error.responseText));
         alert('エラーが発生しました。テックに連絡ください。');
+        window.open('','_self').close();
       });
+
 
       if (keyword && start_time && end_time) {
         saveSearchHistory(user_name, now, keyword, start_time, end_time);
