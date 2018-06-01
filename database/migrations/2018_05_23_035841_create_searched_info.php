@@ -20,6 +20,7 @@ class CreateSearchedInfo extends Migration
             $table->text('keyword');
             $table->text('start');
             $table->text('end');
+            $table->text('status');
             $table->timestamp('created_at')->nullable();
             $table->timestamp('updated_at')->nullable();
         });

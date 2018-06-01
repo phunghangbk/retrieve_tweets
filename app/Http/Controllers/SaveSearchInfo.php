@@ -23,6 +23,7 @@ class SaveSearchInfo extends Controller
             $searchinfo->keyword = $this->keyword($request);
             $searchinfo->start = $this->start($request);
             $searchinfo->end = $this->end($request);
+            $searchinfo->status = $this->status($request);
 
             if (! $searchinfo->save()) {
                 return response([
@@ -66,5 +67,10 @@ class SaveSearchInfo extends Controller
     private function end($request)
     {
         return ! empty($request->end) ? $request->end : '';
+    }
+
+    private function status($request)
+    {
+        return ! empty($request->status) ? $request->status : '';
     }
 }
