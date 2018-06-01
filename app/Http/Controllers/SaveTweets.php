@@ -41,8 +41,9 @@ class SaveTweets extends Controller
         }
     }
 
-    public function deleteTweets($date = '')
+    public function deleteTweets(Request $request)
     {
+        $date = $request->date;
         if (! empty($date)) {
             $d = new DateTime($date);
         } else {

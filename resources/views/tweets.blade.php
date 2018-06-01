@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>Tweets Search</title>
-  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
   <div class="container" style="margin: 0% 25% 50% 50%;">
@@ -23,58 +22,10 @@
       return now;
     }
 
-    function saveTweet(tweets, user_name, now, keyword, start_time, end_time) {
-      $.ajax({
-        url: "{{route('post.savetweets')}}",
-        type: 'POST',
-        dataType: 'json',
-        data: {
-          'tweets' : JSON.stringify(tweets)
-        },
-      })
-      .done(function(resp) {
-        console.log(resp)
-        if (resp.status == 'success') {
-          $('.savetweetsuccess').text(resp.message);
-          $('.savetweetsuccess').css("display", "block");
-          $('.noresult').text('');
-          $('.noresult').css('display', 'none');
-          $('.savetweeterror').text('');
-          $('.savetweeterror').css('display', 'none');
-        } else {
-          if (resp.status == 'error') {
-            $('.savetweeterror').text(resp.message);
-          } else {
-            $('.savetweeterror').text('データー格納失敗しました。');
-          }
-          $('.savetweeterror').css("display", "block");
-          $('.savetweetsuccess').text('');
-          $('.noresult').text('');
-          $('.noresult').css('display', 'none');
-          $('.savetweetsuccess').css('display', 'none');
-        }
-        if (keyword && start_time && end_time) {
-          saveSearchHistory(user_name, now, keyword, start_time, end_time, getstatus());
-        }
-      })
-      .fail(function(error){
-        $('.savetweetsuccess').text('');
-        $('.savetweetsuccess').css('display', 'none');
-        $('.savetweeterror').text('エラーが発生しました。テックに連絡ください。');
-        $('.savetweeterror').css('display', 'block');
-        $('.noresult').text('');
-        $('.noresult').css('display', 'none');
-        if (keyword && start_time && end_time) {
-          saveSearchHistory(user_name, now, keyword, start_time, end_time, getstatus());
-        }
-        console.log(error)
-      })
-    }
-
     function saveSearchHistory(userName, time, keyword, start, end, st) {
       $.ajax({
-        url: "{{route('post.savesearchinfo')}}",
-        type: 'POST',
+        url: "{{route('get.savesearchinfo')}}",
+        type: 'GET',
         dataType: 'json',
         data: {
           'user_name' : userName,
@@ -95,7 +46,6 @@
 
     function getstatus() {
       var status = '';
-      console.log($('.savetweetsuccess').text());
       if ($('.savetweetsuccess').text()) {
         status += $('.savetweetsuccess').text();
       } else if ($('.savetweeterror').text()) {
@@ -109,7 +59,7 @@
 
     $(function() {
       var now = getnow();
-      var url = "{{route('post.gettweets')}}";
+      var url = "{{route('get.gettweets')}}";
       var user_name = "{{$userName}}";
       var keyword = "{{$keyword}}";
       var start_time = "{{$start}}";
@@ -117,15 +67,10 @@
       var error_message = '';
       var result = [];
       var st = '';
-      $.ajaxSetup({
-        headers: {
-          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        }
-      });
 
       $.ajax({
         url: url,
-        type: 'POST',
+        type: 'GET',
         dataType: 'json',
         data: {
           'keyword': keyword,
@@ -143,6 +88,7 @@
         var error_message = '';
 
         if (resp.error) {
+          console.log(resp.error);
           if (resp.error.keyword) {
             error_message = error_message + resp.error.keyword + '\n';
           }
@@ -155,22 +101,19 @@
           alert(error_message);
         } else {
           console.log(resp);
-          if (typeof resp.tweets.statuses == 'undefined' ||  resp.tweets.statuses.length == 0) {
-            $('.noresult').text('検索結果はありません。');
-            $('.noresult').css('display', 'block');
+          if (typeof resp.status != 'undefined' && resp.status == 'error') {
             $('.savetweetsuccess').text('');
             $('.savetweetsuccess').css('display', 'none');
+            $('.savetweeterror').text(resp.message);
+            $('.savetweeterror').css('display', 'block');
+          } else if (typeof resp.status != 'undefined' && resp.status == 'success') {
+            $('.savetweetsuccess').text(resp.message);
+            $('.savetweetsuccess').css('display', 'block');
             $('.savetweeterror').text('');
             $('.savetweeterror').css('display', 'none');
-            if (keyword && start_time && end_time) {
-              saveSearchHistory(user_name, now, keyword, start_time, end_time, getstatus());
-            }
-          } else {
-            saveTweet(resp.tweets.statuses, user_name, now, keyword, start_time, end_time);
           }
-
-          window.open('','_self');
-          window.close();
+          saveSearchHistory(user_name, now, keyword, start_time, end_time, getstatus())
+          window.open('','_self').close();
         }
       })
       .fail(function(error) {
@@ -178,8 +121,6 @@
         $('.savetweetsuccess').css('display', 'none');
         $('.savetweeterror').text('エラーが発生しました。テックに連絡ください。');
         $('.savetweeterror').css('display', 'block');
-        $('.noresult').text('');
-        $('.noresult').css('display', 'none');
         if (keyword && start_time && end_time) {
           saveSearchHistory(user_name, now, keyword, start_time, end_time, getstatus());
         }
